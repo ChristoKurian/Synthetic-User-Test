@@ -105,10 +105,21 @@ function esc(s) {
 
 const PALETTE = ["#6d28d9", "#0ea5e9", "#16a34a", "#ea580c", "#db2777", "#64748b"];
 
-function render(title, variantStats) {
+function render(title, variantStats, hasSuccessSignal = true) {
   const names = Object.keys(variantStats);
   const maxSuccessRate = Math.max(0.0001, ...names.map((n) => variantStats[n].successRate));
   const maxClicks = Math.max(1, ...names.map((n) => variantStats[n].medianClicks));
+
+  // Without a real success criterion, checkCriteria() always returns null
+  // (see run-synthetic-test.mjs) — every session ends via patience/timeout,
+  // so successRate is deterministically 0 regardless of the prototype. A
+  // report that showed a bare "0%" there would look like a real finding
+  // when it's actually a guaranteed artifact of not configuring one — say
+  // so plainly instead.
+  const successCell = (s, color) =>
+    hasSuccessSignal
+      ? `${bar(s.successRate, maxSuccessRate, color)}<span class="num-label">${pct(s.successRate)}</span>`
+      : `<span class="num-label">not measured</span>`;
 
   const rows = names
     .map((name, i) => {
@@ -118,8 +129,8 @@ function render(title, variantStats) {
       <tr>
         <td><span class="dot" style="background:${color}"></span>${esc(name)}</td>
         <td class="num">${s.n}</td>
-        <td>${bar(s.successRate, maxSuccessRate, color)}<span class="num-label">${pct(s.successRate)}</span></td>
-        <td class="num">${fmtMs(s.medianTimeToSuccessMs)}</td>
+        <td>${successCell(s, color)}</td>
+        <td class="num">${hasSuccessSignal ? fmtMs(s.medianTimeToSuccessMs) : "—"}</td>
         <td>${bar(s.medianClicks, maxClicks, color)}<span class="num-label">${s.medianClicks.toFixed(1)}</span></td>
         <td class="num">${s.errorRate.toFixed(2)}</td>
         <td class="num">${s.rageClickSessions}</td>
@@ -128,17 +139,30 @@ function render(title, variantStats) {
     })
     .join("");
 
-  const archetypeRows = names
-    .flatMap((name) => {
-      const s = variantStats[name];
-      return Object.entries(s.byArchetype).map(
-        ([arch, a]) => `<tr><td>${esc(name)}</td><td>${esc(arch)}</td><td class="num">${a.n}</td><td class="num">${pct(a.n ? a.success / a.n : 0)}</td></tr>`
-      );
-    })
-    .join("");
+  const archetypeSection = hasSuccessSignal
+    ? `<h2>Success rate by persona archetype</h2>
+  <table>
+    <thead><tr><th>Variant</th><th>Archetype</th><th>Sessions</th><th>Success rate</th></tr></thead>
+    <tbody>${names
+      .flatMap((name) => {
+        const s = variantStats[name];
+        return Object.entries(s.byArchetype).map(
+          ([arch, a]) => `<tr><td>${esc(name)}</td><td>${esc(arch)}</td><td class="num">${a.n}</td><td class="num">${pct(a.n ? a.success / a.n : 0)}</td></tr>`
+        );
+      })
+      .join("")}</tbody>
+  </table>`
+    : "";
 
-  const best = names.reduce((a, b) => (variantStats[a].successRate >= variantStats[b].successRate ? a : b), names[0]);
-  const bestStats = variantStats[best];
+  let calloutText;
+  if (hasSuccessSignal) {
+    const best = names.reduce((a, b) => (variantStats[a].successRate >= variantStats[b].successRate ? a : b), names[0]);
+    const bestStats = variantStats[best];
+    calloutText = `<strong>${esc(best)}</strong> had the highest task success rate (${pct(bestStats.successRate)} of ${bestStats.n} synthetic sessions), with a median time-to-success of ${fmtMs(bestStats.medianTimeToSuccessMs)}. Read the full table below before treating this as conclusive — check session counts and error/rage-click rates too.`;
+  } else {
+    const fewestClicks = names.reduce((a, b) => (variantStats[a].medianClicks <= variantStats[b].medianClicks ? a : b), names[0]);
+    calloutText = `No success criterion was configured for this run, so success rate isn't measured — every session ran until it either finished exploring or hit its step/time budget, which is expected, not a failure. Comparing by friction instead: <strong>${esc(fewestClicks)}</strong> had the fewest median clicks. Add a real \`successCriteria\` (see config-schema.md) for a genuine completion-rate comparison.`;
+  }
 
   return `<!doctype html><html><head><meta charset="utf8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
@@ -165,7 +189,7 @@ function render(title, variantStats) {
 </style></head><body><div class="wrap">
   <h1>${esc(title)}</h1>
   <p class="sub">Generated ${new Date().toISOString()} — synthetic-usability-test skill</p>
-  <div class="callout"><strong>${esc(best)}</strong> had the highest task success rate (${pct(bestStats.successRate)} of ${bestStats.n} synthetic sessions), with a median time-to-success of ${fmtMs(bestStats.medianTimeToSuccessMs)}. Read the full table below before treating this as conclusive — check session counts and error/rage-click rates too.</div>
+  <div class="callout">${calloutText}</div>
 
   <h2>Variant comparison</h2>
   <table>
@@ -173,11 +197,7 @@ function render(title, variantStats) {
     <tbody>${rows}</tbody>
   </table>
 
-  <h2>Success rate by persona archetype</h2>
-  <table>
-    <thead><tr><th>Variant</th><th>Archetype</th><th>Sessions</th><th>Success rate</th></tr></thead>
-    <tbody>${archetypeRows}</tbody>
-  </table>
+  ${archetypeSection}
 
   <footer>Raw per-session event logs (JSONL) live alongside this report in the same output directory. Rage-click and backtrack-loop counts are frustration signals detected directly from click/navigation patterns, independent of any analytics backend.</footer>
 </div></body></html>`;
@@ -196,7 +216,17 @@ function main() {
     console.error("No session data found under", args.outDir);
     process.exit(1);
   }
-  const html = render(args.title, variantStats);
+
+  let hasSuccessSignal = true;
+  try {
+    const manifest = JSON.parse(readFileSync(join(args.outDir, "manifest.json"), "utf8"));
+    hasSuccessSignal = (manifest?.config?.task?.successCriteria || []).length > 0;
+  } catch {
+    // No manifest.json (e.g. LLM-agent-mode logs, or an older run) —
+    // assume a signal was set rather than second-guess data we can't see.
+  }
+
+  const html = render(args.title, variantStats, hasSuccessSignal);
   writeFileSync(args.out, html);
   console.log(`Report written to ${args.out}`);
 }
