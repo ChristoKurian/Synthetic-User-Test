@@ -92,5 +92,4 @@ evals/                      test prompts used to validate the skill
 
 ## License
 
-<!-- pick one before publishing — MIT is a reasonable default for a tool
-     like this -->
+MIT — see [LICENSE](LICENSE). Fork it, use it, change it.
