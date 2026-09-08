@@ -1,0 +1,18 @@
+{
+  "variants": [
+    { "name": "react", "url": "https://todomvc.com/examples/react/dist/" },
+    { "name": "vue", "url": "https://todomvc.com/examples/vue/dist/" }
+  ],
+  "task": {
+    "description": "Add a new todo item and mark it as complete",
+    "keywords": ["add", "todo", "complete", "done", "check"],
+    "successCriteria": [
+      { "type": "selectorVisible", "value": ".completed" }
+    ]
+  },
+  "personas": { "count": 12 },
+  "concurrency": 4,
+  "maxDurationMs": 60000,
+  "headless": true,
+  "outDir": "./out/todomvc-example"
+}

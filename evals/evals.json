@@ -1,0 +1,23 @@
+{
+  "skill_name": "synthetic-usability-test",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to compare two TodoMVC implementations to see which is easier to use for adding and completing a task. React version: https://todomvc.com/examples/react/dist/ and Vue version: https://todomvc.com/examples/vue/dist/. Can you run a bunch of simulated users through both and tell me which one wins? I don't need this hooked up to any analytics tool right now, just want a quick comparison report.",
+      "expected_output": "A run that drives multiple synthetic sessions (varied persona behavior, not one identical script repeated) against both live URLs, produces per-variant metrics (success rate, time-on-task, etc.), does NOT push to PostHog or ask for a key since the user opted out, and delivers a report the user can look at (ideally published/sent as a file) plus a plain-language summary of which variant won and why.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Here's a public demo page: https://the-internet.herokuapp.com/add_remove_elements/ — pretend it's one of my prototypes. Run a synthetic usability test where the task is \"add an element, then delete it\" and give me a report on how well it performs. Just this one page for now, no comparison needed.",
+      "expected_output": "A single-variant run (no comparison table needed, just one prototype's numbers) that defines a real success criterion for \"added then deleted\", runs multiple synthetic sessions against the live page, and reports success rate / time / friction signals for that one prototype.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "We're deciding between two frontend implementations of the same todo app for a client pitch — Vue (https://todomvc.com/examples/vue/dist/) vs Svelte (https://todomvc.com/examples/svelte/dist/). Simulate a bunch of different kinds of users (not just one persona) trying to add and finish a task, and tell me which is more usable, with real numbers not vibes.",
+      "expected_output": "A run with an actual mix of behavioral personas (not N identical bots) against both live URLs, producing quantitative metrics (success rate, time-on-task, clicks, friction signals) per variant, with a clear final recommendation grounded in the numbers rather than a subjective guess.",
+      "files": []
+    }
+  ]
+}

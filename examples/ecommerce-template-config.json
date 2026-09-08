@@ -1,0 +1,27 @@
+{
+  "_comment": "Template, not a tested example — fill in your own no-auth prototype URLs. Task funnel shape (browse -> select -> cart -> checkout) follows the WebShop benchmark's structure; there's no verified public no-auth demo storefront to ship as a working example (checked during development: OpenCart's public demo is Cloudflare-blocked, SauceDemo requires login).",
+  "variants": [
+    { "name": "v1", "url": "https://your-prototype-a.example.com" },
+    { "name": "v2", "url": "https://your-prototype-b.example.com" }
+  ],
+  "task": {
+    "description": "Find a product and add it to the cart",
+    "keywords": ["add to cart", "buy", "shop", "product"],
+    "successCriteria": [
+      { "type": "textVisible", "value": "Added to cart" },
+      { "type": "selectorVisible", "value": "[data-cart-count]" }
+    ]
+  },
+  "personas": {
+    "mix": [
+      { "archetype": "expert", "count": 5 },
+      { "preset": "low_attention", "count": 5 },
+      { "preset": "senior_low_dexterity", "count": 3 },
+      { "preset": "esl_beginner", "count": 3 }
+    ]
+  },
+  "concurrency": 5,
+  "maxDurationMs": 60000,
+  "headless": true,
+  "outDir": "./out/ecommerce-run"
+}

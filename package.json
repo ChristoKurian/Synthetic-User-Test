@@ -1,0 +1,9 @@
+{
+  "name": "synthetic-usability-test-skill",
+  "private": true,
+  "type": "module",
+  "description": "Runtime dependencies for the synthetic-usability-test Claude Code skill. Installed once per machine (npm install in this directory), reused across every project the skill runs against.",
+  "dependencies": {
+    "playwright": "^1.47.0"
+  }
+}
