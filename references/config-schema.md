@@ -72,7 +72,14 @@ generator both read/write this shape. Build one JSON file per test run.
   // Optional — see references/engines.md for the full comparison.
   "engine": "heuristic", // or "llm-scored" (Tier 2: a real model scores candidates, needs ANTHROPIC_API_KEY)
   "llm": { "model": "claude-haiku-4-5-20251001" }, // only used when engine is "llm-scored"; this is the default
-  "cursorRealism": false // curved/eased mouse movement before clicks instead of teleporting — slower, more realistic, also surfaces hover-revealed controls
+  "cursorRealism": false, // curved/eased mouse movement before clicks instead of teleporting — slower, more realistic, also surfaces hover-revealed controls
+
+  // Optional — see references/analytics-connect.md. Tags every session
+  // inside the TARGET PROTOTYPE'S OWN PostHog/Mixpanel client (if either
+  // is already wired into its code), so its own tracking can be queried
+  // back and compared per variant — the opposite direction from
+  // analytics-adapters.md (which exports OUR event log outward).
+  "connectAnalytics": false
 }
 ```
 

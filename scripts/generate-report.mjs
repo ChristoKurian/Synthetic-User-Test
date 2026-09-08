@@ -105,7 +105,32 @@ function esc(s) {
 
 const PALETTE = ["#6d28d9", "#0ea5e9", "#16a34a", "#ea580c", "#db2777", "#64748b"];
 
-function render(title, variantStats, hasSuccessSignal = true) {
+function nativeAnalyticsSection(nativeAnalytics, variantNames) {
+  if (!nativeAnalytics || !nativeAnalytics.byEvent || !Object.keys(nativeAnalytics.byEvent).length) return "";
+  const events = Object.keys(nativeAnalytics.byEvent).sort();
+  const rows = events
+    .map((event) => {
+      const perVariant = nativeAnalytics.byEvent[event];
+      const cells = variantNames
+        .map((v) => {
+          const byArch = perVariant[v] || {};
+          const total = Object.values(byArch).reduce((a, b) => a + b, 0);
+          return `<td class="num">${total || "—"}</td>`;
+        })
+        .join("");
+      return `<tr><td>${esc(event)}</td>${cells}</tr>`;
+    })
+    .join("");
+  const headerCells = variantNames.map((v) => `<th>${esc(v)}</th>`).join("");
+  return `<h2>Product analytics (from the prototype's own tracking)</h2>
+  <p style="font-size:13px;color:var(--ink-muted);margin:0 0 10px">Real events the prototype's own PostHog/Mixpanel instrumentation captured during this run, queried back and counted per variant — not our engine's own click/time metrics above. Per-archetype detail is in <code>native-analytics.json</code> alongside this report.</p>
+  <table>
+    <thead><tr><th>Event</th>${headerCells}</tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function render(title, variantStats, hasSuccessSignal = true, nativeAnalytics = null) {
   const names = Object.keys(variantStats);
   const maxSuccessRate = Math.max(0.0001, ...names.map((n) => variantStats[n].successRate));
   const maxClicks = Math.max(1, ...names.map((n) => variantStats[n].medianClicks));
@@ -199,6 +224,8 @@ function render(title, variantStats, hasSuccessSignal = true) {
 
   ${archetypeSection}
 
+  ${nativeAnalyticsSection(nativeAnalytics, names)}
+
   <footer>Raw per-session event logs (JSONL) live alongside this report in the same output directory. Rage-click and backtrack-loop counts are frustration signals detected directly from click/navigation patterns, independent of any analytics backend.</footer>
 </div></body></html>`;
 }
@@ -226,7 +253,15 @@ function main() {
     // assume a signal was set rather than second-guess data we can't see.
   }
 
-  const html = render(args.title, variantStats, hasSuccessSignal);
+  let nativeAnalytics = null;
+  try {
+    nativeAnalytics = JSON.parse(readFileSync(join(args.outDir, "native-analytics.json"), "utf8"));
+  } catch {
+    // No native-analytics.json — connectAnalytics wasn't used, or
+    // posthog-query.mjs hasn't been run yet for this outDir. Fine either way.
+  }
+
+  const html = render(args.title, variantStats, hasSuccessSignal, nativeAnalytics);
   writeFileSync(args.out, html);
   console.log(`Report written to ${args.out}`);
 }

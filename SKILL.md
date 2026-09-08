@@ -162,24 +162,35 @@ the background if it's a large run (`run_in_background: true` on the Bash
 call) rather than blocking the conversation — check in via the completion
 notification, don't poll.
 
-### 7. Analytics export (ask, don't assume)
+### 7. Analytics — ask, don't assume, and know which direction they mean
 
-Ask the user whether they want events forwarded to an analytics backend,
-and to which one — **don't default to silently sending anywhere**, and
-never ask them to paste a secret key into chat if they'd rather set it as
-an environment variable first. If PostHog (the default adapter):
+"Connect my analytics" is ambiguous — find out which of two different
+things the user means before building either:
 
-```bash
-node <skill_dir>/scripts/adapters/posthog.mjs <outDir> --key <project_api_key> --host https://us.i.posthog.com --experiment <slug>
-```
+- **Export** — send OUR engine's own event log (clicks, timing, errors,
+  friction signals) outward to an analytics backend. Ask which one; if
+  PostHog (the default adapter):
+  ```bash
+  node <skill_dir>/scripts/adapters/posthog.mjs <outDir> --key <project_api_key> --host https://us.i.posthog.com --experiment <slug>
+  ```
+  For a different backend, `references/analytics-adapters.md` has the
+  contract plus starter mappings for Mixpanel, Amplitude, GA4, Segment,
+  and a generic webhook.
 
-If they want a different backend, `references/analytics-adapters.md` has
-the contract plus starter mappings for Mixpanel, Amplitude, GA4, Segment,
-and a generic webhook — write a small adapter script following the same
-pattern (walk the JSONL, map events, POST) rather than bolting analytics
-logic onto the runner itself. If they don't want any backend at all, that's
-a complete, legitimate outcome — the local JSONL and the report below don't
-depend on it.
+- **Connect** — the prototype *already* has PostHog/Mixpanel wired into
+  its own code, and the user wants its own tracking (whatever custom
+  events it fires) compared per variant, not just our generic metrics. Set
+  `connectAnalytics: true` in the config (tags every session inside the
+  target's own analytics client automatically, no credentials needed for
+  that part), then after the run use `scripts/adapters/posthog-query.mjs`
+  to pull the tagged events back and fold them into the report. Full
+  details, including a real caveat worth reading before assuming a script
+  is broken, in `references/analytics-connect.md`.
+
+Never default to silently sending or connecting anywhere, and never ask
+the user to paste a secret key into chat if they'd rather set it as an
+environment variable first. Not wanting either is a complete, legitimate
+outcome — the local JSONL and the report don't depend on it.
 
 ### 8. Generate and deliver the report
 
@@ -204,8 +215,13 @@ summary so you don't overstate a thin result.
   and how to translate a plain-language user description into one.
 - `references/engines.md` — Tier 1 vs. Tier 2 vs. LLM-agent mode compared,
   `cursorRealism`, and the research/datasets each mechanism is grounded in.
-- `references/analytics-adapters.md` — the adapter contract; PostHog
-  default plus how to swap in another backend.
+- `references/analytics-adapters.md` — **export**: the adapter contract for
+  sending our own event log outward; PostHog default plus how to swap in
+  another backend.
+- `references/analytics-connect.md` — **connect**: tagging synthetic
+  sessions inside a prototype's own already-wired PostHog/Mixpanel client
+  and querying its own tracking back into the report — the other
+  direction from export, read both before assuming which one someone means.
 - `references/llm-agent-mode.md` — when and how to use the high-fidelity
   subagent-driven mode instead of/alongside the Playwright engine.
 - `references/report-guide.md` — how to read and correctly caveat the

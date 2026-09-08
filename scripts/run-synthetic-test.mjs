@@ -15,6 +15,7 @@ import { scoreElement, weightedPick, extractKeywords } from "./lib/scent.mjs";
 import { JsonlWriter, makeEvent } from "./lib/events.mjs";
 import { scoreElementsWithLLM, resolveApiKey } from "./lib/llm-scorer.mjs";
 import { humanMouseMove, humannessScore } from "./lib/cursor.mjs";
+import { buildInjectionScript, makeRunId, sessionTags } from "./lib/analytics-injection.mjs";
 
 async function collectInteractiveElements(page, scopePrefix) {
   return page.evaluate((scopePrefix) => {
@@ -230,12 +231,30 @@ function fakeValueFor(el, task) {
 }
 
 async function runSession({ browser, variant, task, persona, outDir, config }) {
+  const sessionId = `${persona.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     userAgent: `SyntheticUsabilityTest/1.0 (${persona.archetype})`,
   });
+
+  // Opt-in only — this modifies navigator.webdriver and injects into the
+  // target's own analytics client, which should never happen silently.
+  // See lib/analytics-injection.mjs for why and its scope caveat.
+  if (config.connectAnalytics) {
+    await context.addInitScript(
+      buildInjectionScript(
+        sessionTags({
+          runId: config.runId,
+          variant: variant.name,
+          personaId: persona.id,
+          personaArchetype: persona.archetype,
+          sessionId,
+        })
+      )
+    );
+  }
+
   const page = await context.newPage();
-  const sessionId = `${persona.id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const base = { sessionId, variant: variant.name, personaId: persona.id, personaArchetype: persona.archetype };
   const scopePrefix = new URL(variant.url).pathname;
   const writer = new JsonlWriter(join(outDir, variant.name, `${sessionId}.jsonl`));
@@ -455,6 +474,14 @@ async function main() {
   mkdirSync(outDir, { recursive: true });
   config.maxDurationMs = config.maxDurationMs || 90000;
   const concurrency = config.concurrency || 5;
+
+  if (config.connectAnalytics) {
+    config.runId = config.runId || makeRunId();
+    console.log(
+      `Connecting to target's own analytics: on (run id: ${config.runId}). Every session tags itself in the ` +
+        "target's PostHog/Mixpanel client (if either is present) — see references/analytics-connect.md to query it back."
+    );
+  }
 
   if (config.engine === "llm-scored") {
     if (!resolveApiKey(config.llm?.apiKey)) {
