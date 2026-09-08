@@ -21,7 +21,20 @@ async function collectInteractiveElements(page, scopePrefix) {
     const SELECTOR =
       "a[href], button, [role=button], [role=link], [role=menuitem], " +
       "input:not([type=hidden]):not([disabled]), select, textarea, summary, [onclick]";
-    const nodes = Array.from(document.querySelectorAll(SELECTOR));
+    const semanticNodes = Array.from(document.querySelectorAll(SELECTOR));
+
+    // Real apps (React/Vue especially) very commonly attach a click handler
+    // to a plain div/span/table cell with none of the above — no href, no
+    // role, no onclick attribute (framework event delegation doesn't set
+    // one). The only affordance is often the same one a human relies on:
+    // the cursor turning into a pointer on hover. This scan catches that
+    // class of element, bounded to tags actually likely to carry a click
+    // handler rather than scanning the whole page (`*`), which would both
+    // be slow and pull in a flood of irrelevant matches.
+    const cursorCandidateNodes = Array.from(document.querySelectorAll("div, span, tr, td, li, article, section")).filter(
+      (el) => window.getComputedStyle(el).cursor === "pointer"
+    );
+    const nodes = [...semanticNodes, ...cursorCandidateNodes];
     const seen = new Set();
     const out = [];
     let idx = 0;
@@ -99,6 +112,7 @@ async function collectInteractiveElements(page, scopePrefix) {
         tag,
         role: el.getAttribute("role") || "",
         type,
+        readonly: el.hasAttribute("readonly"),
         href: el.getAttribute("href") || "",
         index: idx,
         y: Math.round(rect.top + window.scrollY),
@@ -331,8 +345,14 @@ async function runSession({ browser, variant, task, persona, outDir, config }) {
 
       const locator = page.locator(`[data-suid="${target.suid}"]`).first();
       try {
+        // A readonly text input is almost always a click-to-open trigger
+        // (a date picker, an autocomplete/typeahead panel, a search-as-you-
+        // scroll list) rather than something you can actually type into —
+        // Playwright's fill() would just time out against it, so route it
+        // through the click path instead.
         const isTextInput =
           ["input", "textarea"].includes(target.tag) &&
+          !target.readonly &&
           !["checkbox", "radio", "submit", "button"].includes(target.type);
         if (isTextInput) {
           if (target.type === "password") {
